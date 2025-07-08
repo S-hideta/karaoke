@@ -14,11 +14,18 @@ class KaraokeApp {
         this.currentPracticeStep = 'waiting'; // waiting, playing, recording, playback
         this.microphoneStream = null;
         this.savedSessions = JSON.parse(localStorage.getItem('karaokeSessions') || '[]');
+        this.youtubePlayer = null;
+        this.currentVideoId = null;
+        this.isUsingYouTube = false;
+        this.searchCache = new Map();
+        this.lyricsCache = new Map();
         
         this.initializeElements();
         this.setupEventListeners();
         this.requestMicrophonePermission();
         this.loadSavedSessions();
+        this.initializeYouTubePlayer();
+        this.checkAPIConfiguration();
     }
     
     initializeElements() {
@@ -196,7 +203,7 @@ class KaraokeApp {
     }
     
     updatePracticeAvailability() {
-        const hasAudio = this.audioPlayer.src !== '';
+        const hasAudio = this.audioPlayer.src !== '' || this.currentVideoId || this.elements.songTitle.textContent !== '楽曲を選択してください';
         const hasLyrics = this.lyrics.length > 0;
         this.elements.startPracticeBtn.disabled = !(hasAudio && hasLyrics);
         this.elements.saveSessionBtn.disabled = !(hasAudio && hasLyrics);
@@ -412,52 +419,127 @@ class KaraokeApp {
     }
     
     // Song search functionality
-    searchSongs() {
+    async searchSongs() {
         const query = this.elements.songSearch.value.trim();
         if (!query) return;
         
         this.elements.searchResults.innerHTML = '<div class="search-result-item">検索中...</div>';
         
-        // Simulate song search (in real implementation, this would call an API)
-        setTimeout(() => {
-            const mockResults = [
-                { title: '津軽海峡冬景色', artist: '石川さゆり', duration: '4:23' },
-                { title: '贈る言葉', artist: '海援隊', duration: '3:45' },
-                { title: '乾杯', artist: '恵比寿マスカッツ', duration: '3:21' },
-                { title: 'First Love', artist: '宇多田ヒカル', duration: '4:18' }
-            ].filter(song => 
-                song.title.includes(query) || song.artist.includes(query)
-            );
-            
-            if (mockResults.length > 0) {
-                this.displaySearchResults(mockResults);
-            } else {
-                this.elements.searchResults.innerHTML = '<div class="search-result-item">検索結果が見つかりませんでした</div>';
+        try {
+            // Check cache first
+            const cacheKey = query.toLowerCase();
+            if (this.searchCache.has(cacheKey)) {
+                this.displaySearchResults(this.searchCache.get(cacheKey));
+                return;
             }
-        }, 500);
+            
+            // Combine results from multiple APIs
+            const results = await Promise.all([
+                this.searchYouTube(query),
+                this.searchiTunes(query),
+                this.searchSampleData(query)
+            ]);
+            
+            const combinedResults = this.combineSearchResults(results.flat());
+            
+            if (combinedResults.length > 0) {
+                this.searchCache.set(cacheKey, combinedResults);
+                this.displaySearchResults(combinedResults);
+            } else {
+                // Fuzzy search as fallback
+                const fuzzyResults = await this.fuzzySearch(query);
+                if (fuzzyResults.length > 0) {
+                    this.displaySearchResults(fuzzyResults, true);
+                } else {
+                    this.elements.searchResults.innerHTML = '<div class="search-result-item">検索結果が見つかりませんでした</div>';
+                }
+            }
+        } catch (error) {
+            console.error('Search error:', error);
+            this.elements.searchResults.innerHTML = '<div class="search-result-item">検索中にエラーが発生しました</div>';
+        }
     }
     
-    displaySearchResults(results) {
+    displaySearchResults(results, isFuzzy = false) {
         this.elements.searchResults.innerHTML = '';
+        
+        if (isFuzzy && results.length > 0) {
+            const fuzzyHeader = document.createElement('div');
+            fuzzyHeader.className = 'search-fuzzy-header';
+            fuzzyHeader.textContent = 'もしかして以下の楽曲をお探しですか？';
+            this.elements.searchResults.appendChild(fuzzyHeader);
+        }
+        
         results.forEach(result => {
             const resultItem = document.createElement('div');
             resultItem.className = 'search-result-item';
+            
+            const thumbnail = result.thumbnail || result.artwork;
+            const sourceIcon = result.source === 'YouTube' ? '🎬' : '🎵';
+            
             resultItem.innerHTML = `
-                <strong>${result.title}</strong><br>
-                <small>${result.artist} - ${result.duration}</small>
+                <div class="result-content">
+                    ${thumbnail ? `<img src="${thumbnail}" alt="thumbnail" class="result-thumbnail">` : ''}
+                    <div class="result-info">
+                        <div class="result-title">${this.highlightSearchTerm(result.title)}</div>
+                        <div class="result-artist">${this.highlightSearchTerm(result.artist)}</div>
+                        <div class="result-meta">
+                            <span class="result-duration">${result.duration}</span>
+                            <span class="result-source">${sourceIcon} ${result.source}</span>
+                        </div>
+                    </div>
+                </div>
             `;
+            
             resultItem.addEventListener('click', () => this.selectSong(result));
             this.elements.searchResults.appendChild(resultItem);
         });
     }
     
-    selectSong(song) {
+    highlightSearchTerm(text) {
+        const query = this.elements.songSearch.value.trim().toLowerCase();
+        if (!query) return text;
+        
+        const regex = new RegExp(`(${query})`, 'gi');
+        return text.replace(regex, '<mark>$1</mark>');
+    }
+    
+    async selectSong(song) {
         this.elements.songTitle.textContent = `${song.title} - ${song.artist}`;
         this.elements.searchResults.innerHTML = '';
         this.elements.songSearch.value = '';
         
-        // In real implementation, this would load the actual audio file
-        alert(`選択された楽曲: ${song.title} - ${song.artist}\n実際の音源ファイルをアップロードしてください。`);
+        // Load YouTube video if available
+        if (song.videoId) {
+            this.loadYouTubeVideo(song.videoId);
+            this.isUsingYouTube = true;
+        } else if (song.previewUrl) {
+            this.loadAudioFromUrl(song.previewUrl);
+            this.isUsingYouTube = false;
+        } else if (song.source === 'Sample') {
+            // For sample data, enable controls without actual audio
+            this.elements.playBtn.disabled = false;
+            this.elements.pauseBtn.disabled = false;
+            this.elements.stopBtn.disabled = false;
+            this.isUsingYouTube = false;
+        }
+        
+        // Load lyrics from sample data or search APIs
+        if (song.lyrics && song.source === 'Sample') {
+            this.loadLyricsFromSample(song.lyrics);
+        } else {
+            await this.searchAndLoadLyrics(song.title, song.artist);
+        }
+        
+        this.updatePracticeAvailability();
+    }
+    
+    loadLyricsFromSample(sampleLyrics) {
+        this.lyrics = sampleLyrics;
+        this.timedLyrics = []; // No timing data for sample lyrics
+        this.elements.lyricsInput.value = this.lyrics.join('\n');
+        this.updateLyricsDisplay();
+        this.updatePracticeAvailability();
     }
     
     // Lyrics synchronization
@@ -655,6 +737,361 @@ class KaraokeApp {
             this.loadSession(selectedSession);
             alert(`セッション "${selectedSession}" を読み込みました！`);
         }
+    }
+    
+    // API Configuration Check
+    checkAPIConfiguration() {
+        const apiStatus = document.getElementById('api-status');
+        if (!apiStatus) return;
+        
+        const hasYouTubeAPI = CONFIG.YOUTUBE_API_KEY && CONFIG.YOUTUBE_API_KEY !== 'YOUR_YOUTUBE_API_KEY_HERE';
+        const hasMusixmatchAPI = CONFIG.MUSIXMATCH_API_KEY && CONFIG.MUSIXMATCH_API_KEY !== 'YOUR_MUSIXMATCH_API_KEY_HERE';
+        
+        if (!hasYouTubeAPI && !hasMusixmatchAPI) {
+            apiStatus.className = 'api-status warning';
+            apiStatus.innerHTML = `
+                <strong>🔧 API設定について</strong><br>
+                現在はデモモードで動作しています。より多くの楽曲と歌詞を検索するには、以下のAPIキーを設定してください：<br>
+                • YouTube Data API v3 (楽曲検索)<br>
+                • Musixmatch API (歌詞検索)<br>
+                詳細は config.js ファイルをご確認ください。
+            `;
+            apiStatus.style.display = 'block';
+        } else {
+            let message = '<strong>✅ API設定状況</strong><br>';
+            message += hasYouTubeAPI ? '• YouTube API: 有効<br>' : '• YouTube API: 無効<br>';
+            message += hasMusixmatchAPI ? '• Musixmatch API: 有効<br>' : '• Musixmatch API: 無効<br>';
+            
+            apiStatus.className = 'api-status success';
+            apiStatus.innerHTML = message;
+            apiStatus.style.display = 'block';
+        }
+        
+        if (typeof checkAPIKeys === 'function') {
+            checkAPIKeys();
+        }
+    }
+    
+    // YouTube Player Integration
+    initializeYouTubePlayer() {
+        window.onYouTubeIframeAPIReady = () => {
+            this.youtubePlayer = new YT.Player('youtube-player', {
+                height: '0',
+                width: '0',
+                playerVars: {
+                    'playsinline': 1,
+                    'controls': 0,
+                    'disablekb': 1,
+                    'fs': 0,
+                    'modestbranding': 1
+                },
+                events: {
+                    'onReady': (event) => {
+                        console.log('YouTube player ready');
+                    },
+                    'onStateChange': (event) => {
+                        this.handleYouTubeStateChange(event);
+                    }
+                }
+            });
+        };
+    }
+    
+    handleYouTubeStateChange(event) {
+        if (event.data === YT.PlayerState.PLAYING) {
+            this.isPlaying = true;
+            this.startProgressUpdate();
+        } else if (event.data === YT.PlayerState.PAUSED) {
+            this.isPlaying = false;
+        } else if (event.data === YT.PlayerState.ENDED) {
+            this.isPlaying = false;
+            this.handleAudioEnded();
+        }
+    }
+    
+    loadYouTubeVideo(videoId) {
+        if (this.youtubePlayer && this.youtubePlayer.loadVideoById) {
+            this.youtubePlayer.loadVideoById(videoId);
+            this.currentVideoId = videoId;
+            this.elements.playBtn.disabled = false;
+            this.elements.pauseBtn.disabled = false;
+            this.elements.stopBtn.disabled = false;
+        }
+    }
+    
+    loadAudioFromUrl(url) {
+        this.audioPlayer.src = url;
+        this.isUsingYouTube = false;
+        this.elements.playBtn.disabled = false;
+        this.elements.pauseBtn.disabled = false;
+        this.elements.stopBtn.disabled = false;
+    }
+    
+    startProgressUpdate() {
+        if (this.progressUpdateInterval) {
+            clearInterval(this.progressUpdateInterval);
+        }
+        
+        this.progressUpdateInterval = setInterval(() => {
+            if (this.isUsingYouTube && this.youtubePlayer && this.youtubePlayer.getCurrentTime) {
+                const currentTime = this.youtubePlayer.getCurrentTime();
+                const duration = this.youtubePlayer.getDuration();
+                this.updateProgressDisplay(currentTime, duration);
+                this.updateLyricsHighlight(currentTime);
+            }
+        }, 100);
+    }
+    
+    updateProgressDisplay(currentTime, duration) {
+        if (duration > 0) {
+            const progress = (currentTime / duration) * 100;
+            this.elements.progress.style.width = progress + '%';
+            this.elements.currentTime.textContent = this.formatTime(currentTime);
+            this.elements.totalTime.textContent = this.formatTime(duration);
+        }
+    }
+    
+    updateLyricsHighlight(currentTime) {
+        if (this.timedLyrics.length === 0) return;
+        
+        let currentLineIndex = -1;
+        for (let i = 0; i < this.timedLyrics.length; i++) {
+            if (currentTime >= this.timedLyrics[i].time) {
+                currentLineIndex = i;
+            } else {
+                break;
+            }
+        }
+        
+        if (currentLineIndex !== this.lastHighlightedIndex) {
+            this.highlightLyricsLine(currentLineIndex);
+            this.lastHighlightedIndex = currentLineIndex;
+        }
+    }
+    
+    highlightLyricsLine(index) {
+        const lineElements = this.elements.lyricsDisplay.querySelectorAll('.lyrics-line');
+        lineElements.forEach((element, i) => {
+            element.classList.remove('current', 'completed');
+            if (i < index) {
+                element.classList.add('completed');
+            } else if (i === index) {
+                element.classList.add('current');
+            }
+        });
+    }
+    
+    // YouTube API Search
+    async searchYouTube(query) {
+        if (!CONFIG.YOUTUBE_API_KEY || CONFIG.YOUTUBE_API_KEY === 'YOUR_YOUTUBE_API_KEY_HERE') {
+            return [];
+        }
+        
+        try {
+            const url = `${CONFIG.YOUTUBE_SEARCH_URL}?part=snippet&q=${encodeURIComponent(query + ' karaoke')}&type=video&maxResults=${CONFIG.YOUTUBE_SEARCH_RESULTS}&key=${CONFIG.YOUTUBE_API_KEY}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.items) {
+                return data.items.map(item => ({
+                    title: item.snippet.title.replace(/\s*\(.*?\)|\s*\[.*?\]/g, ''),
+                    artist: item.snippet.channelTitle,
+                    duration: 'YouTube',
+                    videoId: item.id.videoId,
+                    thumbnail: item.snippet.thumbnails.default.url,
+                    source: 'YouTube'
+                }));
+            }
+            return [];
+        } catch (error) {
+            console.error('YouTube search error:', error);
+            return [];
+        }
+    }
+    
+    // iTunes API Search
+    async searchiTunes(query) {
+        try {
+            const url = `${CONFIG.ITUNES_SEARCH_URL}?term=${encodeURIComponent(query)}&media=music&limit=${CONFIG.ITUNES_SEARCH_RESULTS}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.results) {
+                return data.results.map(item => ({
+                    title: item.trackName,
+                    artist: item.artistName,
+                    duration: this.formatTime(item.trackTimeMillis / 1000),
+                    previewUrl: item.previewUrl,
+                    artwork: item.artworkUrl100,
+                    source: 'iTunes'
+                }));
+            }
+            return [];
+        } catch (error) {
+            console.error('iTunes search error:', error);
+            return [];
+        }
+    }
+    
+    // Combine and deduplicate search results
+    combineSearchResults(results) {
+        const seen = new Set();
+        const combined = [];
+        
+        for (const result of results) {
+            const key = `${result.title.toLowerCase()}-${result.artist.toLowerCase()}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                combined.push(result);
+            }
+        }
+        
+        return combined.slice(0, 8); // Limit to 8 results
+    }
+    
+    // Fuzzy search for better results
+    async fuzzySearch(query) {
+        const fuzzyQueries = [
+            query.replace(/\s+/g, ''),
+            query.split(' ').reverse().join(' '),
+            query + ' cover',
+            query + ' instrumental',
+            query.replace(/[^\w\s]/gi, '')
+        ];
+        
+        for (const fuzzyQuery of fuzzyQueries) {
+            const results = await this.searchiTunes(fuzzyQuery);
+            if (results.length > 0) {
+                return results;
+            }
+        }
+        
+        // Final fallback: search sample data with fuzzy matching
+        return this.searchSampleData(query, true);
+    }
+    
+    // Search and load lyrics
+    async searchAndLoadLyrics(title, artist) {
+        try {
+            const cacheKey = `${title.toLowerCase()}-${artist.toLowerCase()}`;
+            if (this.lyricsCache.has(cacheKey)) {
+                const lyrics = this.lyricsCache.get(cacheKey);
+                this.loadLyricsFromAPI(lyrics);
+                return;
+            }
+            
+            // Try multiple lyrics sources
+            let lyrics = await this.searchMusixmatchLyrics(title, artist);
+            if (!lyrics) {
+                lyrics = await this.searchGeniusLyrics(title, artist);
+            }
+            
+            if (lyrics) {
+                this.lyricsCache.set(cacheKey, lyrics);
+                this.loadLyricsFromAPI(lyrics);
+            }
+        } catch (error) {
+            console.error('Lyrics search error:', error);
+        }
+    }
+    
+    loadLyricsFromAPI(lyrics) {
+        if (lyrics.lines) {
+            this.lyrics = lyrics.lines.map(line => line.text);
+            this.timedLyrics = lyrics.lines.map((line, index) => ({
+                text: line.text,
+                time: line.time || 0,
+                index: index
+            }));
+        } else {
+            this.lyrics = lyrics.split('\n').filter(line => line.trim() !== '');
+            this.timedLyrics = [];
+        }
+        
+        this.elements.lyricsInput.value = this.lyrics.join('\n');
+        this.updateLyricsDisplay();
+        this.updatePracticeAvailability();
+    }
+    
+    // Musixmatch API (requires proxy due to CORS)
+    async searchMusixmatchLyrics(title, artist) {
+        // This would require a backend proxy due to CORS restrictions
+        // For now, return null to use fallback methods
+        return null;
+    }
+    
+    // Sample Data Search
+    async searchSampleData(query, fuzzyMode = false) {
+        if (!CONFIG.DEMO_SONGS) return [];
+        
+        const results = CONFIG.DEMO_SONGS.filter(song => {
+            const titleMatch = song.title.toLowerCase().includes(query.toLowerCase());
+            const artistMatch = song.artist.toLowerCase().includes(query.toLowerCase());
+            
+            if (fuzzyMode) {
+                // More lenient matching for fuzzy search
+                const queryWords = query.toLowerCase().split(/\s+/);
+                const titleWords = song.title.toLowerCase().split(/\s+/);
+                const artistWords = song.artist.toLowerCase().split(/\s+/);
+                
+                return queryWords.some(qword => 
+                    titleWords.some(tword => tword.includes(qword)) ||
+                    artistWords.some(aword => aword.includes(qword))
+                );
+            }
+            
+            return titleMatch || artistMatch;
+        });
+        
+        return results.map(song => ({
+            ...song,
+            thumbnail: null,
+            previewUrl: null
+        }));
+    }
+    
+    // Genius API (simplified implementation)
+    async searchGeniusLyrics(title, artist) {
+        // This would require a backend proxy due to CORS restrictions
+        // For now, return null to use fallback methods
+        return null;
+    }
+    
+    // Override playAudio to handle YouTube
+    playAudio() {
+        if (this.isPracticeMode) return;
+        
+        if (this.isUsingYouTube && this.youtubePlayer && this.youtubePlayer.playVideo) {
+            this.youtubePlayer.playVideo();
+        } else {
+            this.audioPlayer.play();
+        }
+        this.isPlaying = true;
+    }
+    
+    // Override pauseAudio to handle YouTube
+    pauseAudio() {
+        if (this.isPracticeMode) return;
+        
+        if (this.isUsingYouTube && this.youtubePlayer && this.youtubePlayer.pauseVideo) {
+            this.youtubePlayer.pauseVideo();
+        } else {
+            this.audioPlayer.pause();
+        }
+        this.isPlaying = false;
+    }
+    
+    // Override stopAudio to handle YouTube
+    stopAudio() {
+        if (this.isPracticeMode) return;
+        
+        if (this.isUsingYouTube && this.youtubePlayer && this.youtubePlayer.stopVideo) {
+            this.youtubePlayer.stopVideo();
+        } else {
+            this.audioPlayer.pause();
+            this.audioPlayer.currentTime = 0;
+        }
+        this.isPlaying = false;
     }
 }
 

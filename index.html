@@ -13,6 +13,8 @@
         </header>
         
         <main>
+            <div id="api-status" class="api-status" style="display: none;"></div>
+            
             <div class="search-section">
                 <h3>楽曲検索</h3>
                 <div class="search-controls">
@@ -106,6 +108,12 @@
     </div>
     
     <audio id="audio-player" preload="auto"></audio>
+    <div id="youtube-player"></div>
+    
+    <!-- Configuration -->
+    <script src="config.js"></script>
+    <!-- YouTube API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
     <script src="script.js"></script>
 </body>
 </html>
