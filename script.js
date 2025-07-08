@@ -20,12 +20,109 @@ class KaraokeApp {
         this.searchCache = new Map();
         this.lyricsCache = new Map();
         
+        // Initialize CONFIG with fallback
+        this.ensureConfig();
+        
         this.initializeElements();
         this.setupEventListeners();
         this.requestMicrophonePermission();
         this.loadSavedSessions();
         this.initializeYouTubePlayer();
         this.checkAPIConfiguration();
+    }
+    
+    // Ensure CONFIG object exists with default values
+    ensureConfig() {
+        if (typeof window.CONFIG === 'undefined' || !window.CONFIG) {
+            console.warn('CONFIG not loaded, using fallback configuration');
+            window.CONFIG = {
+                // API Keys (user needs to set these)
+                YOUTUBE_API_KEY: 'YOUR_YOUTUBE_API_KEY_HERE',
+                MUSIXMATCH_API_KEY: 'YOUR_MUSIXMATCH_API_KEY_HERE',
+                
+                // API URLs
+                YOUTUBE_SEARCH_URL: 'https://www.googleapis.com/youtube/v3/search',
+                MUSIXMATCH_SEARCH_URL: 'https://api.musixmatch.com/ws/1.1/track.search',
+                MUSIXMATCH_LYRICS_URL: 'https://api.musixmatch.com/ws/1.1/track.lyrics.get',
+                ITUNES_SEARCH_URL: 'https://itunes.apple.com/search',
+                
+                // Settings
+                YOUTUBE_SEARCH_RESULTS: 5,
+                MUSIXMATCH_SEARCH_RESULTS: 5,
+                ITUNES_SEARCH_RESULTS: 5,
+                
+                // Demo Songs
+                DEMO_SONGS: [
+                    {
+                        title: '津軽海峡冬景色',
+                        artist: '石川さゆり',
+                        duration: '4:23',
+                        source: 'Sample',
+                        lyrics: [
+                            '上野発の夜行列車降りた時から',
+                            '青森駅は雪の中',
+                            '北へ帰る人の群れは誰も無口で',
+                            '海鳴りだけを聞いている',
+                            '私もひとり連絡船に乗り',
+                            '故郷を離れる時が来た',
+                            '青森駅は雪の中',
+                            '青森駅は雪の中'
+                        ]
+                    },
+                    {
+                        title: '贈る言葉',
+                        artist: '海援隊',
+                        duration: '3:45',
+                        source: 'Sample',
+                        lyrics: [
+                            '暮れない空に焦がれて',
+                            '空に歌えば',
+                            '懐かしい人の声がする',
+                            '振り返れば いつも',
+                            '君がいて',
+                            '励ましてくれた',
+                            'あの時代を',
+                            '忘れはしない'
+                        ]
+                    },
+                    {
+                        title: 'First Love',
+                        artist: '宇多田ヒカル',
+                        duration: '4:18',
+                        source: 'Sample',
+                        lyrics: [
+                            '最後のキスは',
+                            'タバコの flavor がした',
+                            'ニガくて sour な香り',
+                            'あれから僕は',
+                            'you\'ve always been in my heart',
+                            'そして今でも',
+                            'you\'re the only one',
+                            'いつかは終わりが来る'
+                        ]
+                    },
+                    {
+                        title: '乾杯',
+                        artist: '恵比寿マスカッツ',
+                        duration: '3:21',
+                        source: 'Sample',
+                        lyrics: [
+                            '君に乾杯',
+                            'ありがとう',
+                            'もう一度',
+                            '君に乾杯',
+                            'さようなら',
+                            'また会える日まで',
+                            'ここで乾杯',
+                            'みんなで乾杯'
+                        ]
+                    }
+                ]
+            };
+        }
+        
+        // Make CONFIG globally accessible
+        window.CONFIG = window.CONFIG;
     }
     
     initializeElements() {
@@ -819,17 +916,8 @@ class KaraokeApp {
         const apiStatus = document.getElementById('api-status');
         if (!apiStatus) return;
         
-        // Check if CONFIG is properly loaded
-        if (typeof CONFIG === 'undefined' || !CONFIG) {
-            apiStatus.className = 'api-status warning';
-            apiStatus.innerHTML = `
-                <strong>⚠️ 設定エラー</strong><br>
-                config.js ファイルが正しく読み込まれていません。ページを再読み込みしてください。
-            `;
-            apiStatus.style.display = 'block';
-            console.error('CONFIG object is not defined. Check if config.js is loaded.');
-            return;
-        }
+        // CONFIG should now always be available due to ensureConfig()
+        const config = window.CONFIG || CONFIG;
         
         const hasYouTubeAPI = CONFIG.YOUTUBE_API_KEY && CONFIG.YOUTUBE_API_KEY !== 'YOUR_YOUTUBE_API_KEY_HERE';
         const hasMusixmatchAPI = CONFIG.MUSIXMATCH_API_KEY && CONFIG.MUSIXMATCH_API_KEY !== 'YOUR_MUSIXMATCH_API_KEY_HERE';
