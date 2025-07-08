@@ -65,6 +65,17 @@ class KaraokeApp {
             if (e.key === 'Enter') this.searchSongs();
         });
         
+        // Add debug functionality (remove in production)
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            console.log('Debug mode enabled');
+            window.debugKaraoke = {
+                testSearch: (query) => this.searchSongs.call({...this, elements: {...this.elements, songSearch: {value: query}}}),
+                testSampleData: (query) => this.searchSampleData(query),
+                testConfig: () => console.log('CONFIG:', CONFIG),
+                checkAPIs: () => this.checkAPIConfiguration()
+            };
+        }
+        
         // Audio file selection
         this.elements.audioFile.addEventListener('change', (e) => this.loadAudioFile(e));
         
@@ -433,31 +444,79 @@ class KaraokeApp {
                 return;
             }
             
-            // Combine results from multiple APIs
-            const results = await Promise.all([
-                this.searchYouTube(query),
-                this.searchiTunes(query),
-                this.searchSampleData(query)
-            ]);
+            // Search from multiple sources with individual error handling
+            const searchPromises = [
+                this.searchSampleData(query).catch(error => {
+                    console.error('Sample data search error:', error);
+                    return [];
+                }),
+                this.searchiTunes(query).catch(error => {
+                    console.error('iTunes search error:', error);
+                    return [];
+                }),
+                this.searchYouTube(query).catch(error => {
+                    console.error('YouTube search error:', error);
+                    return [];
+                })
+            ];
             
-            const combinedResults = this.combineSearchResults(results.flat());
+            const results = await Promise.allSettled(searchPromises);
+            const successfulResults = results
+                .filter(result => result.status === 'fulfilled')
+                .map(result => result.value)
+                .flat();
+            
+            const combinedResults = this.combineSearchResults(successfulResults);
             
             if (combinedResults.length > 0) {
                 this.searchCache.set(cacheKey, combinedResults);
                 this.displaySearchResults(combinedResults);
             } else {
                 // Fuzzy search as fallback
-                const fuzzyResults = await this.fuzzySearch(query);
-                if (fuzzyResults.length > 0) {
-                    this.displaySearchResults(fuzzyResults, true);
-                } else {
-                    this.elements.searchResults.innerHTML = '<div class="search-result-item">検索結果が見つかりませんでした</div>';
+                try {
+                    const fuzzyResults = await this.fuzzySearch(query);
+                    if (fuzzyResults.length > 0) {
+                        this.displaySearchResults(fuzzyResults, true);
+                    } else {
+                        this.showNoResults();
+                    }
+                } catch (fuzzyError) {
+                    console.error('Fuzzy search error:', fuzzyError);
+                    this.showNoResults();
                 }
             }
         } catch (error) {
             console.error('Search error:', error);
-            this.elements.searchResults.innerHTML = '<div class="search-result-item">検索中にエラーが発生しました</div>';
+            this.showSearchError(error.message);
         }
+    }
+    
+    showNoResults() {
+        this.elements.searchResults.innerHTML = `
+            <div class="search-result-item no-results">
+                <div style="text-align: center; padding: 20px;">
+                    <div style="font-size: 24px; margin-bottom: 10px;">🔍</div>
+                    <div><strong>検索結果が見つかりませんでした</strong></div>
+                    <div style="color: #666; font-size: 14px; margin-top: 5px;">
+                        別のキーワードで検索してみてください
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    showSearchError(message) {
+        this.elements.searchResults.innerHTML = `
+            <div class="search-result-item error-message">
+                <div style="text-align: center; padding: 20px;">
+                    <div style="font-size: 24px; margin-bottom: 10px;">⚠️</div>
+                    <div><strong>検索中にエラーが発生しました</strong></div>
+                    <div style="color: #666; font-size: 14px; margin-top: 5px;">
+                        ${message || 'しばらく時間をおいて再度お試しください'}
+                    </div>
+                </div>
+            </div>
+        `;
     }
     
     displaySearchResults(results, isFuzzy = false) {
@@ -744,14 +803,28 @@ class KaraokeApp {
         const apiStatus = document.getElementById('api-status');
         if (!apiStatus) return;
         
+        // Check if CONFIG is properly loaded
+        if (typeof CONFIG === 'undefined' || !CONFIG) {
+            apiStatus.className = 'api-status warning';
+            apiStatus.innerHTML = `
+                <strong>⚠️ 設定エラー</strong><br>
+                config.js ファイルが正しく読み込まれていません。ページを再読み込みしてください。
+            `;
+            apiStatus.style.display = 'block';
+            console.error('CONFIG object is not defined. Check if config.js is loaded.');
+            return;
+        }
+        
         const hasYouTubeAPI = CONFIG.YOUTUBE_API_KEY && CONFIG.YOUTUBE_API_KEY !== 'YOUR_YOUTUBE_API_KEY_HERE';
         const hasMusixmatchAPI = CONFIG.MUSIXMATCH_API_KEY && CONFIG.MUSIXMATCH_API_KEY !== 'YOUR_MUSIXMATCH_API_KEY_HERE';
+        const hasSampleData = CONFIG.DEMO_SONGS && Array.isArray(CONFIG.DEMO_SONGS) && CONFIG.DEMO_SONGS.length > 0;
         
         if (!hasYouTubeAPI && !hasMusixmatchAPI) {
             apiStatus.className = 'api-status warning';
             apiStatus.innerHTML = `
                 <strong>🔧 API設定について</strong><br>
-                現在はデモモードで動作しています。より多くの楽曲と歌詞を検索するには、以下のAPIキーを設定してください：<br>
+                現在はデモモードで動作しています${hasSampleData ? '（サンプルデータ利用可能）' : ''}。<br>
+                より多くの楽曲と歌詞を検索するには、以下のAPIキーを設定してください：<br>
                 • YouTube Data API v3 (楽曲検索)<br>
                 • Musixmatch API (歌詞検索)<br>
                 詳細は config.js ファイルをご確認ください。
@@ -761,6 +834,7 @@ class KaraokeApp {
             let message = '<strong>✅ API設定状況</strong><br>';
             message += hasYouTubeAPI ? '• YouTube API: 有効<br>' : '• YouTube API: 無効<br>';
             message += hasMusixmatchAPI ? '• Musixmatch API: 有効<br>' : '• Musixmatch API: 無効<br>';
+            message += hasSampleData ? '• サンプルデータ: 利用可能<br>' : '• サンプルデータ: 無効<br>';
             
             apiStatus.className = 'api-status success';
             apiStatus.innerHTML = message;
@@ -883,52 +957,123 @@ class KaraokeApp {
     
     // YouTube API Search
     async searchYouTube(query) {
-        if (!CONFIG.YOUTUBE_API_KEY || CONFIG.YOUTUBE_API_KEY === 'YOUR_YOUTUBE_API_KEY_HERE') {
+        // Skip if API key is not configured
+        if (!CONFIG?.YOUTUBE_API_KEY || CONFIG.YOUTUBE_API_KEY === 'YOUR_YOUTUBE_API_KEY_HERE') {
+            console.log('YouTube API key not configured, skipping YouTube search');
             return [];
         }
         
         try {
-            const url = `${CONFIG.YOUTUBE_SEARCH_URL}?part=snippet&q=${encodeURIComponent(query + ' karaoke')}&type=video&maxResults=${CONFIG.YOUTUBE_SEARCH_RESULTS}&key=${CONFIG.YOUTUBE_API_KEY}`;
-            const response = await fetch(url);
+            const searchQuery = encodeURIComponent(query + ' karaoke');
+            const url = `${CONFIG.YOUTUBE_SEARCH_URL}?part=snippet&q=${searchQuery}&type=video&maxResults=${CONFIG.YOUTUBE_SEARCH_RESULTS}&key=${CONFIG.YOUTUBE_API_KEY}`;
+            
+            // Add timeout to fetch request
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+            
+            const response = await fetch(url, {
+                signal: controller.signal,
+                headers: {
+                    'Accept': 'application/json',
+                }
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                throw new Error(`YouTube API error: ${response.status} ${response.statusText}`);
+            }
+            
             const data = await response.json();
             
-            if (data.items) {
+            if (data.error) {
+                throw new Error(`YouTube API error: ${data.error.message}`);
+            }
+            
+            if (data.items && Array.isArray(data.items)) {
                 return data.items.map(item => ({
-                    title: item.snippet.title.replace(/\s*\(.*?\)|\s*\[.*?\]/g, ''),
+                    title: this.cleanTitle(item.snippet.title),
                     artist: item.snippet.channelTitle,
                     duration: 'YouTube',
                     videoId: item.id.videoId,
-                    thumbnail: item.snippet.thumbnails.default.url,
+                    thumbnail: item.snippet.thumbnails?.default?.url,
                     source: 'YouTube'
-                }));
+                })).filter(item => item.title && item.artist);
             }
+            
             return [];
         } catch (error) {
-            console.error('YouTube search error:', error);
+            if (error.name === 'AbortError') {
+                console.error('YouTube search timeout');
+            } else {
+                console.error('YouTube search error:', error.message);
+            }
             return [];
         }
+    }
+    
+    // Clean up video titles
+    cleanTitle(title) {
+        if (!title) return '';
+        return title
+            .replace(/\s*\(.*?\)|\s*\[.*?\]/g, '') // Remove parentheses and brackets
+            .replace(/\s*-\s*(official|music|video|mv|pv|karaoke|lyrics).*$/i, '') // Remove common suffixes
+            .replace(/\s*(official|music|video|mv|pv|karaoke|lyrics)\s*/gi, ' ') // Remove common words
+            .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+            .trim();
     }
     
     // iTunes API Search
     async searchiTunes(query) {
         try {
-            const url = `${CONFIG.ITUNES_SEARCH_URL}?term=${encodeURIComponent(query)}&media=music&limit=${CONFIG.ITUNES_SEARCH_RESULTS}`;
-            const response = await fetch(url);
+            const searchTerm = encodeURIComponent(query);
+            const url = `${CONFIG.ITUNES_SEARCH_URL}?term=${searchTerm}&media=music&entity=song&limit=${CONFIG.ITUNES_SEARCH_RESULTS}&country=JP`;
+            
+            // Add timeout to fetch request
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+            
+            const response = await fetch(url, {
+                signal: controller.signal,
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                },
+                mode: 'cors' // Explicitly set CORS mode
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                throw new Error(`iTunes API error: ${response.status} ${response.statusText}`);
+            }
+            
             const data = await response.json();
             
-            if (data.results) {
-                return data.results.map(item => ({
-                    title: item.trackName,
-                    artist: item.artistName,
-                    duration: this.formatTime(item.trackTimeMillis / 1000),
-                    previewUrl: item.previewUrl,
-                    artwork: item.artworkUrl100,
-                    source: 'iTunes'
-                }));
+            if (data.results && Array.isArray(data.results)) {
+                return data.results
+                    .filter(item => item.trackName && item.artistName) // Filter out items without required fields
+                    .map(item => ({
+                        title: item.trackName,
+                        artist: item.artistName,
+                        duration: item.trackTimeMillis ? this.formatTime(item.trackTimeMillis / 1000) : 'Unknown',
+                        previewUrl: item.previewUrl,
+                        artwork: item.artworkUrl100,
+                        source: 'iTunes',
+                        genre: item.primaryGenreName
+                    }))
+                    .slice(0, CONFIG.ITUNES_SEARCH_RESULTS); // Ensure we don't exceed the limit
             }
+            
             return [];
         } catch (error) {
-            console.error('iTunes search error:', error);
+            if (error.name === 'AbortError') {
+                console.error('iTunes search timeout');
+            } else if (error.message.includes('CORS')) {
+                console.error('iTunes CORS error - this is expected in some browsers');
+            } else {
+                console.error('iTunes search error:', error.message);
+            }
             return [];
         }
     }
@@ -951,23 +1096,36 @@ class KaraokeApp {
     
     // Fuzzy search for better results
     async fuzzySearch(query) {
-        const fuzzyQueries = [
-            query.replace(/\s+/g, ''),
-            query.split(' ').reverse().join(' '),
-            query + ' cover',
-            query + ' instrumental',
-            query.replace(/[^\w\s]/gi, '')
-        ];
-        
-        for (const fuzzyQuery of fuzzyQueries) {
-            const results = await this.searchiTunes(fuzzyQuery);
-            if (results.length > 0) {
-                return results;
+        try {
+            // Generate fuzzy search variations
+            const fuzzyQueries = [
+                query.replace(/\s+/g, ''), // Remove spaces
+                query.split(' ').reverse().join(' '), // Reverse word order
+                query.replace(/[^\w\s]/gi, ''), // Remove special characters
+                query.split(' ')[0], // First word only
+                query.replace(/\d+/g, '').trim() // Remove numbers
+            ].filter(q => q.length > 0); // Remove empty queries
+            
+            // Try iTunes with fuzzy queries
+            for (const fuzzyQuery of fuzzyQueries) {
+                try {
+                    const results = await this.searchiTunes(fuzzyQuery);
+                    if (results.length > 0) {
+                        return results.slice(0, 3); // Limit fuzzy results
+                    }
+                } catch (error) {
+                    console.error(`Fuzzy search error for "${fuzzyQuery}":`, error.message);
+                    continue; // Try next query
+                }
             }
+            
+            // Final fallback: search sample data with fuzzy matching
+            return await this.searchSampleData(query, true);
+        } catch (error) {
+            console.error('Fuzzy search error:', error);
+            // Return sample data as last resort
+            return await this.searchSampleData(query, true);
         }
-        
-        // Final fallback: search sample data with fuzzy matching
-        return this.searchSampleData(query, true);
     }
     
     // Search and load lyrics
@@ -1022,32 +1180,61 @@ class KaraokeApp {
     
     // Sample Data Search
     async searchSampleData(query, fuzzyMode = false) {
-        if (!CONFIG.DEMO_SONGS) return [];
-        
-        const results = CONFIG.DEMO_SONGS.filter(song => {
-            const titleMatch = song.title.toLowerCase().includes(query.toLowerCase());
-            const artistMatch = song.artist.toLowerCase().includes(query.toLowerCase());
-            
-            if (fuzzyMode) {
-                // More lenient matching for fuzzy search
-                const queryWords = query.toLowerCase().split(/\s+/);
-                const titleWords = song.title.toLowerCase().split(/\s+/);
-                const artistWords = song.artist.toLowerCase().split(/\s+/);
-                
-                return queryWords.some(qword => 
-                    titleWords.some(tword => tword.includes(qword)) ||
-                    artistWords.some(aword => aword.includes(qword))
-                );
+        try {
+            // Check if CONFIG and DEMO_SONGS exist
+            if (!CONFIG || !CONFIG.DEMO_SONGS || !Array.isArray(CONFIG.DEMO_SONGS)) {
+                console.log('Sample data not available');
+                return [];
             }
             
-            return titleMatch || artistMatch;
-        });
-        
-        return results.map(song => ({
-            ...song,
-            thumbnail: null,
-            previewUrl: null
-        }));
+            if (!query || typeof query !== 'string') {
+                return [];
+            }
+            
+            const queryLower = query.toLowerCase().trim();
+            if (queryLower.length === 0) {
+                return [];
+            }
+            
+            const results = CONFIG.DEMO_SONGS.filter(song => {
+                if (!song || !song.title || !song.artist) {
+                    return false;
+                }
+                
+                const titleLower = song.title.toLowerCase();
+                const artistLower = song.artist.toLowerCase();
+                
+                if (!fuzzyMode) {
+                    // Exact substring matching
+                    return titleLower.includes(queryLower) || artistLower.includes(queryLower);
+                } else {
+                    // Fuzzy matching: check if any query word appears in title or artist
+                    const queryWords = queryLower.split(/\s+/).filter(word => word.length > 0);
+                    const titleWords = titleLower.split(/\s+/);
+                    const artistWords = artistLower.split(/\s+/);
+                    
+                    return queryWords.some(qword => 
+                        titleWords.some(tword => tword.includes(qword) || qword.includes(tword)) ||
+                        artistWords.some(aword => aword.includes(qword) || qword.includes(aword))
+                    );
+                }
+            });
+            
+            // Return formatted results
+            return results.map(song => ({
+                title: song.title,
+                artist: song.artist,
+                duration: song.duration || 'Sample',
+                source: song.source || 'Sample',
+                lyrics: song.lyrics,
+                thumbnail: null,
+                previewUrl: null
+            }));
+            
+        } catch (error) {
+            console.error('Sample data search error:', error);
+            return [];
+        }
     }
     
     // Genius API (simplified implementation)

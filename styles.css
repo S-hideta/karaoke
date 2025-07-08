@@ -494,6 +494,28 @@ mark {
     color: #155724;
 }
 
+/* Search result states */
+.search-result-item.no-results,
+.search-result-item.error-message {
+    border: none !important;
+    background-color: #f8f9fa !important;
+}
+
+.search-result-item.no-results:hover,
+.search-result-item.error-message:hover {
+    background-color: #f8f9fa !important;
+    border-left: none !important;
+    cursor: default;
+}
+
+.error-message {
+    color: #dc3545;
+}
+
+.no-results {
+    color: #6c757d;
+}
+
 /* Lyrics controls */
 .lyrics-controls {
     display: flex;
