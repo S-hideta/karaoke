@@ -368,7 +368,7 @@ class KaraokeApp {
         this.elements.pauseBtn.disabled = false;
         this.elements.stopBtn.disabled = false;
         
-        this.audioPlayer.pause();
+        this.pausePracticeAudio();
         this.clearLyricsHighlight();
         this.elements.practiceStatusText.textContent = '練習を停止しました';
         
@@ -388,10 +388,34 @@ class KaraokeApp {
         this.elements.practiceStatusText.textContent = `${this.currentLineIndex + 1}行目を再生中...`;
         
         // Play the current line for approximately 5 seconds
-        this.audioPlayer.play();
+        this.playPracticeAudio();
         this.practiceTimer = setTimeout(() => {
             this.handlePracticeLineComplete();
         }, 5000);
+    }
+    
+    playPracticeAudio() {
+        if (this.isUsingYouTube && this.youtubePlayer && this.youtubePlayer.playVideo) {
+            this.youtubePlayer.playVideo();
+            this.isPlaying = true;
+            this.startProgressUpdate();
+        } else if (this.audioPlayer.src) {
+            this.audioPlayer.play();
+            this.isPlaying = true;
+        } else {
+            // Fallback for sample data without actual audio
+            console.log('Playing sample audio (no actual audio source)');
+            this.isPlaying = true;
+        }
+    }
+    
+    pausePracticeAudio() {
+        if (this.isUsingYouTube && this.youtubePlayer && this.youtubePlayer.pauseVideo) {
+            this.youtubePlayer.pauseVideo();
+        } else if (this.audioPlayer.src) {
+            this.audioPlayer.pause();
+        }
+        this.isPlaying = false;
     }
     
     handlePracticeLineComplete() {
@@ -400,7 +424,7 @@ class KaraokeApp {
             this.practiceTimer = null;
         }
         
-        this.audioPlayer.pause();
+        this.pausePracticeAudio();
         this.currentPracticeStep = 'recording';
         this.elements.practiceStatusText.textContent = '録音ボタンを押して歌ってください';
         this.elements.recordBtn.disabled = false;
@@ -794,7 +818,7 @@ class KaraokeApp {
     
     // Phrase playback functionality
     playPhraseAt(index) {
-        if (!this.audioPlayer.src) {
+        if (!this.audioPlayer.src && !this.isUsingYouTube) {
             alert('楽曲を選択してください');
             return;
         }
@@ -803,13 +827,17 @@ class KaraokeApp {
         if (timedLyric) {
             // Start playback 1 second before the vocal
             const startTime = Math.max(0, timedLyric.time - 1);
-            this.audioPlayer.currentTime = startTime;
+            
+            if (this.isUsingYouTube && this.youtubePlayer && this.youtubePlayer.seekTo) {
+                this.youtubePlayer.seekTo(startTime);
+                this.youtubePlayer.playVideo();
+            } else if (this.audioPlayer.src) {
+                this.audioPlayer.currentTime = startTime;
+                this.audioPlayer.play();
+            }
             
             // Highlight the selected line
             this.highlightLine(index);
-            
-            // Play for approximately 8 seconds (or until next line)
-            this.audioPlayer.play();
             
             if (this.phrasePlaybackTimer) {
                 clearTimeout(this.phrasePlaybackTimer);
@@ -821,12 +849,17 @@ class KaraokeApp {
                 8000; // 8 seconds default
             
             this.phrasePlaybackTimer = setTimeout(() => {
-                this.audioPlayer.pause();
+                this.pausePracticeAudio();
                 this.clearLyricsHighlight();
             }, playDuration);
         } else {
             // If no timing info, just play from current position
-            this.audioPlayer.play();
+            if (this.isUsingYouTube && this.youtubePlayer && this.youtubePlayer.playVideo) {
+                this.youtubePlayer.playVideo();
+            } else if (this.audioPlayer.src) {
+                this.audioPlayer.play();
+            }
+            
             this.highlightLine(index);
             
             // Stop after 8 seconds
@@ -835,7 +868,7 @@ class KaraokeApp {
             }
             
             this.phrasePlaybackTimer = setTimeout(() => {
-                this.audioPlayer.pause();
+                this.pausePracticeAudio();
                 this.clearLyricsHighlight();
             }, 8000);
         }
