@@ -1,0 +1,16 @@
+{
+  "name": "karaoke-practice-app",
+  "version": "1.0.0",
+  "description": "A web-based karaoke practice application",
+  "main": "index.html",
+  "scripts": {
+    "start": "serve -s .",
+    "build": "echo 'Static site - no build needed'"
+  },
+  "keywords": ["karaoke", "practice", "music", "recording"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "serve": "^14.2.1"
+  }
+}

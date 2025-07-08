@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>カラオケ練習アプリ</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>カラオケ練習アプリ</h1>
+        </header>
+        
+        <main>
+            <div class="audio-section">
+                <div class="song-info">
+                    <h2 id="song-title">楽曲を選択してください</h2>
+                </div>
+                
+                <div class="audio-controls">
+                    <input type="file" id="audio-file" accept="audio/*">
+                    <button id="play-btn" disabled>再生</button>
+                    <button id="pause-btn" disabled>一時停止</button>
+                    <button id="stop-btn" disabled>停止</button>
+                </div>
+                
+                <div class="progress-bar">
+                    <div id="progress" class="progress-fill"></div>
+                </div>
+                
+                <div class="time-display">
+                    <span id="current-time">0:00</span>
+                    <span id="total-time">0:00</span>
+                </div>
+            </div>
+            
+            <div class="lyrics-section">
+                <h3>歌詞</h3>
+                <div id="lyrics-container">
+                    <div class="lyrics-input-section">
+                        <textarea id="lyrics-input" placeholder="歌詞を入力してください（1行ずつ改行で区切って入力）"></textarea>
+                        <button id="set-lyrics-btn">歌詞をセット</button>
+                    </div>
+                    <div id="lyrics-display"></div>
+                </div>
+            </div>
+            
+            <div class="practice-section">
+                <h3>練習モード</h3>
+                <div class="practice-controls">
+                    <button id="start-practice-btn" disabled>練習開始</button>
+                    <button id="stop-practice-btn" disabled>練習停止</button>
+                </div>
+                
+                <div class="practice-status">
+                    <p id="practice-status-text">楽曲と歌詞を準備してください</p>
+                </div>
+            </div>
+            
+            <div class="recording-section">
+                <h3>録音</h3>
+                <div class="recording-controls">
+                    <button id="record-btn" disabled>録音開始</button>
+                    <button id="stop-record-btn" disabled>録音停止</button>
+                    <button id="play-record-btn" disabled>録音再生</button>
+                </div>
+                
+                <div class="recording-status">
+                    <p id="recording-status-text">録音準備完了</p>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <audio id="audio-player" preload="auto"></audio>
+    <script src="script.js"></script>
+</body>
+</html>
