@@ -13,6 +13,15 @@
         </header>
         
         <main>
+            <div class="search-section">
+                <h3>楽曲検索</h3>
+                <div class="search-controls">
+                    <input type="text" id="song-search" placeholder="曲名またはアーティスト名で検索">
+                    <button id="search-btn">検索</button>
+                </div>
+                <div id="search-results"></div>
+            </div>
+            
             <div class="audio-section">
                 <div class="song-info">
                     <h2 id="song-title">楽曲を選択してください</h2>
@@ -40,9 +49,23 @@
                 <div id="lyrics-container">
                     <div class="lyrics-input-section">
                         <textarea id="lyrics-input" placeholder="歌詞を入力してください（1行ずつ改行で区切って入力）"></textarea>
-                        <button id="set-lyrics-btn">歌詞をセット</button>
+                        <div class="lyrics-controls">
+                            <button id="set-lyrics-btn">歌詞をセット</button>
+                            <button id="sync-lyrics-btn" disabled>歌詞同期</button>
+                        </div>
                     </div>
                     <div id="lyrics-display"></div>
+                </div>
+            </div>
+            
+            <div class="session-section">
+                <h3>セッション管理</h3>
+                <div class="session-controls">
+                    <button id="save-session-btn" disabled>セッション保存</button>
+                    <select id="session-select">
+                        <option value="">保存されたセッションを選択</option>
+                    </select>
+                    <button id="load-session-btn" disabled>セッション読み込み</button>
                 </div>
             </div>
             
@@ -61,9 +84,18 @@
             <div class="recording-section">
                 <h3>録音</h3>
                 <div class="recording-controls">
-                    <button id="record-btn" disabled>録音開始</button>
-                    <button id="stop-record-btn" disabled>録音停止</button>
-                    <button id="play-record-btn" disabled>録音再生</button>
+                    <button id="record-btn">
+                        <span class="mic-icon">🎤</span>
+                        録音開始
+                    </button>
+                    <button id="stop-record-btn" disabled>
+                        <span class="stop-icon">⏹️</span>
+                        録音停止
+                    </button>
+                    <button id="play-record-btn" disabled>
+                        <span class="play-icon">▶️</span>
+                        録音再生
+                    </button>
                 </div>
                 
                 <div class="recording-status">

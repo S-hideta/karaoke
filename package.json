@@ -5,7 +5,7 @@
   "main": "index.html",
   "scripts": {
     "start": "serve -s .",
-    "build": "echo 'Static site - no build needed'"
+    "build": "echo 'Build complete - static files ready for deployment'"
   },
   "keywords": ["karaoke", "practice", "music", "recording"],
   "author": "",

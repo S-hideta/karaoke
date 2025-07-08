@@ -31,8 +31,10 @@ header h1 {
 }
 
 /* Sections */
+.search-section,
 .audio-section,
 .lyrics-section,
+.session-section,
 .practice-section,
 .recording-section {
     background: white;
@@ -42,8 +44,10 @@ header h1 {
     margin-bottom: 20px;
 }
 
+.search-section h3,
 .audio-section h2,
 .lyrics-section h3,
+.session-section h3,
 .practice-section h3,
 .recording-section h3 {
     color: #2c3e50;
@@ -339,6 +343,176 @@ header h1 {
     }
 }
 
+/* Search Section */
+.search-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.search-controls input[type="text"] {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.search-controls button {
+    padding: 10px 20px;
+    background-color: #9b59b6;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+.search-controls button:hover {
+    background-color: #8e44ad;
+}
+
+#search-results {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #fafafa;
+}
+
+.search-result-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.search-result-item:hover {
+    background-color: #f0f0f0;
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+/* Lyrics controls */
+.lyrics-controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.lyrics-controls button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+#set-lyrics-btn {
+    background-color: #27ae60;
+    color: white;
+}
+
+#set-lyrics-btn:hover {
+    background-color: #229954;
+}
+
+#sync-lyrics-btn {
+    background-color: #f39c12;
+    color: white;
+}
+
+#sync-lyrics-btn:hover:not(:disabled) {
+    background-color: #d68910;
+}
+
+#sync-lyrics-btn:disabled {
+    background-color: #bdc3c7;
+    cursor: not-allowed;
+}
+
+/* Session controls */
+.session-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.session-controls button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+#save-session-btn {
+    background-color: #e67e22;
+    color: white;
+}
+
+#save-session-btn:hover:not(:disabled) {
+    background-color: #d35400;
+}
+
+#save-session-btn:disabled {
+    background-color: #bdc3c7;
+    cursor: not-allowed;
+}
+
+#load-session-btn {
+    background-color: #16a085;
+    color: white;
+}
+
+#load-session-btn:hover:not(:disabled) {
+    background-color: #138d75;
+}
+
+#load-session-btn:disabled {
+    background-color: #bdc3c7;
+    cursor: not-allowed;
+}
+
+#session-select {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    min-width: 200px;
+    flex: 1;
+}
+
+/* Clickable lyrics */
+.lyrics-line {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.lyrics-line:hover {
+    background-color: #ecf0f1;
+}
+
+/* Recording icons and animations */
+.mic-icon, .stop-icon, .play-icon {
+    margin-right: 5px;
+    font-size: 16px;
+}
+
+.mic-icon.recording {
+    animation: blink 1s infinite;
+}
+
+.recording-controls button.recording {
+    animation: pulse 1s infinite;
+}
+
 /* Recording animation */
 .recording {
     animation: pulse 1s infinite;
@@ -348,4 +522,9 @@ header h1 {
     0% { opacity: 1; }
     50% { opacity: 0.5; }
     100% { opacity: 1; }
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.3; }
 }

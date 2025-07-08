@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: karaoke-practice-app
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
