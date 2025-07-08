@@ -344,6 +344,74 @@ header h1 {
 }
 
 /* Search Section */
+.url-input-section {
+    background-color: #f0f8ff;
+    border: 2px solid #3498db;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.url-input-section h4 {
+    margin: 0 0 15px 0;
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+.url-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.url-controls input[type="url"] {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #3498db;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: white;
+}
+
+.url-controls input[type="url"]:focus {
+    outline: none;
+    border-color: #2980b9;
+    box-shadow: 0 0 5px rgba(52, 152, 219, 0.3);
+}
+
+.url-controls button {
+    padding: 12px 24px;
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: background-color 0.3s;
+}
+
+.url-controls button:hover {
+    background-color: #c0392b;
+}
+
+.url-help {
+    color: #7f8c8d;
+    font-style: italic;
+}
+
+.search-controls-section {
+    border-top: 1px solid #ecf0f1;
+    padding-top: 20px;
+    margin-top: 20px;
+}
+
+.search-controls-section h4 {
+    margin: 0 0 15px 0;
+    color: #7f8c8d;
+    font-size: 14px;
+}
+
 .search-controls {
     display: flex;
     gap: 10px;

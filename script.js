@@ -30,6 +30,8 @@ class KaraokeApp {
     
     initializeElements() {
         this.elements = {
+            youtubeUrl: document.getElementById('youtube-url'),
+            loadUrlBtn: document.getElementById('load-url-btn'),
             songSearch: document.getElementById('song-search'),
             searchBtn: document.getElementById('search-btn'),
             searchResults: document.getElementById('search-results'),
@@ -59,7 +61,21 @@ class KaraokeApp {
     }
     
     setupEventListeners() {
-        // Search functionality
+        // YouTube URL functionality
+        this.elements.loadUrlBtn.addEventListener('click', () => this.loadYouTubeURL());
+        this.elements.youtubeUrl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.loadYouTubeURL();
+        });
+        this.elements.youtubeUrl.addEventListener('paste', (e) => {
+            // Auto-load after paste with slight delay
+            setTimeout(() => {
+                if (this.isValidYouTubeURL(this.elements.youtubeUrl.value)) {
+                    this.loadYouTubeURL();
+                }
+            }, 100);
+        });
+        
+        // Search functionality (backup)
         this.elements.searchBtn.addEventListener('click', () => this.searchSongs());
         this.elements.songSearch.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.searchSongs();
@@ -1279,6 +1295,134 @@ class KaraokeApp {
             this.audioPlayer.currentTime = 0;
         }
         this.isPlaying = false;
+    }
+    
+    // YouTube URL handling
+    loadYouTubeURL() {
+        const url = this.elements.youtubeUrl.value.trim();
+        
+        if (!url) {
+            alert('YouTubeのURLを入力してください');
+            return;
+        }
+        
+        if (!this.isValidYouTubeURL(url)) {
+            alert('有効なYouTubeのURLを入力してください\n\n対応形式:\n• https://www.youtube.com/watch?v=VIDEO_ID\n• https://youtu.be/VIDEO_ID\n• https://m.youtube.com/watch?v=VIDEO_ID');
+            return;
+        }
+        
+        const videoId = this.extractYouTubeVideoId(url);
+        if (!videoId) {
+            alert('YouTubeの動画IDを取得できませんでした');
+            return;
+        }
+        
+        // Get video info and load
+        this.loadYouTubeVideoFromURL(videoId, url);
+    }
+    
+    isValidYouTubeURL(url) {
+        const patterns = [
+            /^(https?:\/\/)?(www\.|m\.)?youtube\.com\/watch\?v=[\w-]+/,
+            /^(https?:\/\/)?(www\.)?youtu\.be\/[\w-]+/,
+            /^(https?:\/\/)?(www\.|m\.)?youtube\.com\/embed\/[\w-]+/,
+            /^(https?:\/\/)?(www\.|m\.)?youtube\.com\/v\/[\w-]+/
+        ];
+        
+        return patterns.some(pattern => pattern.test(url));
+    }
+    
+    extractYouTubeVideoId(url) {
+        // Handle different YouTube URL formats
+        const patterns = [
+            /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([^&\n?#]+)/,
+            /youtube\.com\/watch\?.*v=([^&\n?#]+)/
+        ];
+        
+        for (const pattern of patterns) {
+            const match = url.match(pattern);
+            if (match && match[1]) {
+                return match[1];
+            }
+        }
+        
+        return null;
+    }
+    
+    async loadYouTubeVideoFromURL(videoId, originalUrl) {
+        try {
+            // Clear previous results
+            this.elements.searchResults.innerHTML = '';
+            
+            // Show loading state
+            this.elements.searchResults.innerHTML = '<div class="search-result-item">YouTube動画を読み込み中...</div>';
+            
+            // Try to get video title using YouTube API (if available)
+            let videoTitle = 'YouTube動画';
+            let channelTitle = 'YouTube';
+            
+            if (CONFIG?.YOUTUBE_API_KEY && CONFIG.YOUTUBE_API_KEY !== 'YOUR_YOUTUBE_API_KEY_HERE') {
+                try {
+                    const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${CONFIG.YOUTUBE_API_KEY}`);
+                    const data = await response.json();
+                    
+                    if (data.items && data.items.length > 0) {
+                        videoTitle = this.cleanTitle(data.items[0].snippet.title);
+                        channelTitle = data.items[0].snippet.channelTitle;
+                    }
+                } catch (error) {
+                    console.log('Could not fetch video title, using default');
+                }
+            }
+            
+            // Load the video
+            this.loadYouTubeVideo(videoId);
+            this.currentVideoId = videoId;
+            this.isUsingYouTube = true;
+            
+            // Update song title
+            this.elements.songTitle.textContent = `${videoTitle} - ${channelTitle}`;
+            
+            // Show success message
+            this.elements.searchResults.innerHTML = `
+                <div class="search-result-item" style="background-color: #d4edda; border-color: #c3e6cb; color: #155724;">
+                    <div style="text-align: center; padding: 15px;">
+                        <div style="font-size: 20px; margin-bottom: 10px;">✅</div>
+                        <div><strong>YouTube動画を読み込みました</strong></div>
+                        <div style="font-size: 14px; margin-top: 5px;">
+                            ${videoTitle} - ${channelTitle}
+                        </div>
+                        <div style="font-size: 12px; margin-top: 10px; color: #666;">
+                            歌詞を手動で入力するか、下の検索機能で歌詞を検索してください
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Clear URL input
+            this.elements.youtubeUrl.value = '';
+            
+            // Try to search for lyrics automatically
+            if (videoTitle !== 'YouTube動画') {
+                await this.searchAndLoadLyrics(videoTitle, channelTitle);
+            }
+            
+            this.updatePracticeAvailability();
+            
+        } catch (error) {
+            console.error('Error loading YouTube video:', error);
+            this.elements.searchResults.innerHTML = `
+                <div class="search-result-item error-message">
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="font-size: 24px; margin-bottom: 10px;">❌</div>
+                        <div><strong>YouTube動画の読み込みに失敗しました</strong></div>
+                        <div style="color: #666; font-size: 14px; margin-top: 5px;">
+                            URLを確認して再度お試しください
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
     }
 }
 

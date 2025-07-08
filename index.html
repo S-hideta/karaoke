@@ -16,11 +16,44 @@
             <div id="api-status" class="api-status" style="display: none;"></div>
             
             <div class="search-section">
-                <h3>楽曲検索</h3>
-                <div class="search-controls">
-                    <input type="text" id="song-search" placeholder="曲名またはアーティスト名で検索">
-                    <button id="search-btn">検索</button>
+                <h3>楽曲選択</h3>
+                
+                <!-- YouTube URL Input (Primary) -->
+                <div class="url-input-section">
+                    <h4>🎬 YouTube URL直接入力（推奨）</h4>
+                    <div class="url-controls">
+                        <input type="url" id="youtube-url" placeholder="YouTubeのURLをここに貼り付けてください（例: https://www.youtube.com/watch?v=...)">
+                        <button id="load-url-btn">読み込み</button>
+                    </div>
+                    <div class="url-help">
+                        <small>💡 YouTubeで楽曲を見つけて、URLをコピー＆ペーストするのが最も確実です</small>
+                        <details style="margin-top: 10px;">
+                            <summary style="cursor: pointer; color: #3498db;">📖 使い方の詳細</summary>
+                            <div style="margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 4px; font-size: 13px;">
+                                <strong>手順：</strong><br>
+                                1. YouTubeで練習したい楽曲を検索<br>
+                                2. 動画ページのURLをコピー<br>
+                                3. 上の入力欄にペースト（自動で読み込み開始）<br>
+                                4. 歌詞を手動入力または検索で取得<br>
+                                <br>
+                                <strong>対応URL形式：</strong><br>
+                                • https://www.youtube.com/watch?v=...<br>
+                                • https://youtu.be/...<br>
+                                • https://m.youtube.com/watch?v=...<br>
+                            </div>
+                        </details>
+                    </div>
                 </div>
+                
+                <!-- Search (Secondary) -->
+                <div class="search-controls-section">
+                    <h4>🔍 楽曲検索（補助的）</h4>
+                    <div class="search-controls">
+                        <input type="text" id="song-search" placeholder="曲名またはアーティスト名で検索">
+                        <button id="search-btn">検索</button>
+                    </div>
+                </div>
+                
                 <div id="search-results"></div>
             </div>
             
