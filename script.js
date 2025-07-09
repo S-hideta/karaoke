@@ -28,7 +28,6 @@ class KaraokeApp {
         this.requestMicrophonePermission();
         this.loadSavedSessions();
         this.initializeYouTubePlayer();
-        this.checkAPIConfiguration();
     }
     
     // Ensure CONFIG object exists with default values
@@ -49,75 +48,7 @@ class KaraokeApp {
                 // Settings
                 YOUTUBE_SEARCH_RESULTS: 5,
                 MUSIXMATCH_SEARCH_RESULTS: 5,
-                ITUNES_SEARCH_RESULTS: 5,
-                
-                // Demo Songs
-                DEMO_SONGS: [
-                    {
-                        title: '津軽海峡冬景色',
-                        artist: '石川さゆり',
-                        duration: '4:23',
-                        source: 'Sample',
-                        lyrics: [
-                            '上野発の夜行列車降りた時から',
-                            '青森駅は雪の中',
-                            '北へ帰る人の群れは誰も無口で',
-                            '海鳴りだけを聞いている',
-                            '私もひとり連絡船に乗り',
-                            '故郷を離れる時が来た',
-                            '青森駅は雪の中',
-                            '青森駅は雪の中'
-                        ]
-                    },
-                    {
-                        title: '贈る言葉',
-                        artist: '海援隊',
-                        duration: '3:45',
-                        source: 'Sample',
-                        lyrics: [
-                            '暮れない空に焦がれて',
-                            '空に歌えば',
-                            '懐かしい人の声がする',
-                            '振り返れば いつも',
-                            '君がいて',
-                            '励ましてくれた',
-                            'あの時代を',
-                            '忘れはしない'
-                        ]
-                    },
-                    {
-                        title: 'First Love',
-                        artist: '宇多田ヒカル',
-                        duration: '4:18',
-                        source: 'Sample',
-                        lyrics: [
-                            '最後のキスは',
-                            'タバコの flavor がした',
-                            'ニガくて sour な香り',
-                            'あれから僕は',
-                            'you\'ve always been in my heart',
-                            'そして今でも',
-                            'you\'re the only one',
-                            'いつかは終わりが来る'
-                        ]
-                    },
-                    {
-                        title: '乾杯',
-                        artist: '恵比寿マスカッツ',
-                        duration: '3:21',
-                        source: 'Sample',
-                        lyrics: [
-                            '君に乾杯',
-                            'ありがとう',
-                            'もう一度',
-                            '君に乾杯',
-                            'さようなら',
-                            'また会える日まで',
-                            'ここで乾杯',
-                            'みんなで乾杯'
-                        ]
-                    }
-                ]
+                ITUNES_SEARCH_RESULTS: 5
             };
         }
         
@@ -163,14 +94,7 @@ class KaraokeApp {
         this.elements.youtubeUrl.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.loadYouTubeURL();
         });
-        this.elements.youtubeUrl.addEventListener('paste', (e) => {
-            // Auto-load after paste with slight delay
-            setTimeout(() => {
-                if (this.isValidYouTubeURL(this.elements.youtubeUrl.value)) {
-                    this.loadYouTubeURL();
-                }
-            }, 100);
-        });
+        // Remove auto-load on paste - let user manually click the button
         
         // Search functionality (backup)
         this.elements.searchBtn.addEventListener('click', () => this.searchSongs());
@@ -183,9 +107,7 @@ class KaraokeApp {
             console.log('Debug mode enabled');
             window.debugKaraoke = {
                 testSearch: (query) => this.searchSongs.call({...this, elements: {...this.elements, songSearch: {value: query}}}),
-                testSampleData: (query) => this.searchSampleData(query),
-                testConfig: () => console.log('CONFIG:', CONFIG),
-                checkAPIs: () => this.checkAPIConfiguration()
+                testConfig: () => console.log('CONFIG:', CONFIG)
             };
         }
         
@@ -583,10 +505,6 @@ class KaraokeApp {
             
             // Search from multiple sources with individual error handling
             const searchPromises = [
-                this.searchSampleData(query).catch(error => {
-                    console.error('Sample data search error:', error);
-                    return [];
-                }),
                 this.searchiTunes(query).catch(error => {
                     console.error('iTunes search error:', error);
                     return [];
@@ -720,23 +638,13 @@ class KaraokeApp {
             this.isUsingYouTube = false;
         }
         
-        // Load lyrics from sample data or search APIs
-        if (song.lyrics && song.source === 'Sample') {
-            this.loadLyricsFromSample(song.lyrics);
-        } else {
-            await this.searchAndLoadLyrics(song.title, song.artist);
-        }
+        // Search for lyrics automatically
+        await this.searchAndLoadLyrics(song.title, song.artist);
         
         this.updatePracticeAvailability();
     }
     
-    loadLyricsFromSample(sampleLyrics) {
-        this.lyrics = sampleLyrics;
-        this.timedLyrics = []; // No timing data for sample lyrics
-        this.elements.lyricsInput.value = this.lyrics.join('\n');
-        this.updateLyricsDisplay();
-        this.updatePracticeAvailability();
-    }
+    // loadLyricsFromSample removed - no more demo mode
     
     // Lyrics synchronization
     startLyricsSync() {
@@ -944,44 +852,7 @@ class KaraokeApp {
         }
     }
     
-    // API Configuration Check
-    checkAPIConfiguration() {
-        const apiStatus = document.getElementById('api-status');
-        if (!apiStatus) return;
-        
-        // CONFIG should now always be available due to ensureConfig()
-        const config = window.CONFIG || CONFIG;
-        
-        const hasYouTubeAPI = CONFIG.YOUTUBE_API_KEY && CONFIG.YOUTUBE_API_KEY !== 'YOUR_YOUTUBE_API_KEY_HERE';
-        const hasMusixmatchAPI = CONFIG.MUSIXMATCH_API_KEY && CONFIG.MUSIXMATCH_API_KEY !== 'YOUR_MUSIXMATCH_API_KEY_HERE';
-        const hasSampleData = CONFIG.DEMO_SONGS && Array.isArray(CONFIG.DEMO_SONGS) && CONFIG.DEMO_SONGS.length > 0;
-        
-        if (!hasYouTubeAPI && !hasMusixmatchAPI) {
-            apiStatus.className = 'api-status warning';
-            apiStatus.innerHTML = `
-                <strong>🔧 API設定について</strong><br>
-                現在はデモモードで動作しています${hasSampleData ? '（サンプルデータ利用可能）' : ''}。<br>
-                より多くの楽曲と歌詞を検索するには、以下のAPIキーを設定してください：<br>
-                • YouTube Data API v3 (楽曲検索)<br>
-                • Musixmatch API (歌詞検索)<br>
-                詳細は config.js ファイルをご確認ください。
-            `;
-            apiStatus.style.display = 'block';
-        } else {
-            let message = '<strong>✅ API設定状況</strong><br>';
-            message += hasYouTubeAPI ? '• YouTube API: 有効<br>' : '• YouTube API: 無効<br>';
-            message += hasMusixmatchAPI ? '• Musixmatch API: 有効<br>' : '• Musixmatch API: 無効<br>';
-            message += hasSampleData ? '• サンプルデータ: 利用可能<br>' : '• サンプルデータ: 無効<br>';
-            
-            apiStatus.className = 'api-status success';
-            apiStatus.innerHTML = message;
-            apiStatus.style.display = 'block';
-        }
-        
-        if (typeof checkAPIKeys === 'function') {
-            checkAPIKeys();
-        }
-    }
+    // API Configuration Check (removed - no more demo mode warnings)
     
     // YouTube Player Integration
     initializeYouTubePlayer() {
@@ -1256,12 +1127,11 @@ class KaraokeApp {
                 }
             }
             
-            // Final fallback: search sample data with fuzzy matching
-            return await this.searchSampleData(query, true);
+            // No more fallback - return empty results
+            return [];
         } catch (error) {
             console.error('Fuzzy search error:', error);
-            // Return sample data as last resort
-            return await this.searchSampleData(query, true);
+            return [];
         }
     }
     
@@ -1315,64 +1185,7 @@ class KaraokeApp {
         return null;
     }
     
-    // Sample Data Search
-    async searchSampleData(query, fuzzyMode = false) {
-        try {
-            // Check if CONFIG and DEMO_SONGS exist
-            if (!CONFIG || !CONFIG.DEMO_SONGS || !Array.isArray(CONFIG.DEMO_SONGS)) {
-                console.log('Sample data not available');
-                return [];
-            }
-            
-            if (!query || typeof query !== 'string') {
-                return [];
-            }
-            
-            const queryLower = query.toLowerCase().trim();
-            if (queryLower.length === 0) {
-                return [];
-            }
-            
-            const results = CONFIG.DEMO_SONGS.filter(song => {
-                if (!song || !song.title || !song.artist) {
-                    return false;
-                }
-                
-                const titleLower = song.title.toLowerCase();
-                const artistLower = song.artist.toLowerCase();
-                
-                if (!fuzzyMode) {
-                    // Exact substring matching
-                    return titleLower.includes(queryLower) || artistLower.includes(queryLower);
-                } else {
-                    // Fuzzy matching: check if any query word appears in title or artist
-                    const queryWords = queryLower.split(/\s+/).filter(word => word.length > 0);
-                    const titleWords = titleLower.split(/\s+/);
-                    const artistWords = artistLower.split(/\s+/);
-                    
-                    return queryWords.some(qword => 
-                        titleWords.some(tword => tword.includes(qword) || qword.includes(tword)) ||
-                        artistWords.some(aword => aword.includes(qword) || qword.includes(aword))
-                    );
-                }
-            });
-            
-            // Return formatted results
-            return results.map(song => ({
-                title: song.title,
-                artist: song.artist,
-                duration: song.duration || 'Sample',
-                source: song.source || 'Sample',
-                lyrics: song.lyrics,
-                thumbnail: null,
-                previewUrl: null
-            }));
-            
-        } catch (error) {
-            console.error('Sample data search error:', error);
-            return [];
-        }
-    }
+    // Sample Data Search (removed - no more demo mode)
     
     // Genius API (simplified implementation)
     async searchGeniusLyrics(title, artist) {
@@ -1520,8 +1333,7 @@ class KaraokeApp {
                 </div>
             `;
             
-            // Clear URL input
-            this.elements.youtubeUrl.value = '';
+            // Keep URL in input for reference
             
             // Try to search for lyrics automatically
             if (videoTitle !== 'YouTube動画') {

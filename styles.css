@@ -542,25 +542,7 @@ mark {
     display: none;
 }
 
-/* API Status */
-.api-status {
-    padding: 10px;
-    margin-bottom: 20px;
-    border-radius: 4px;
-    font-size: 14px;
-}
-
-.api-status.warning {
-    background-color: #fff3cd;
-    border: 1px solid #ffeaa7;
-    color: #856404;
-}
-
-.api-status.success {
-    background-color: #d4edda;
-    border: 1px solid #c3e6cb;
-    color: #155724;
-}
+/* API Status removed - no more demo mode */
 
 /* Search result states */
 .search-result-item.no-results,
